@@ -1,0 +1,4 @@
+
+code/nginx-1.20.2/logs/nginx.pid
+code/nginx-1.20.2/logs/error.log
+code/nginx-1.20.2/logs/access.log
