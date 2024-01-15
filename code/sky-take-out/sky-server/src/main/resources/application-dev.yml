@@ -16,3 +16,8 @@ sky:
 #    access-key-id: LTAI5tQutuVWVBEeC5peYPpo
 #    access-key-secret: LcfVSzOdVeYDOAMrWqsoWD3qGTL8Ar
 #    bucket-name: skyout-cicospui
+  redis:
+    host: localhost
+    port: 6379
+    password: 123456
+    database: 10
