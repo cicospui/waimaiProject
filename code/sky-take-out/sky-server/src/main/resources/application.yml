@@ -55,3 +55,7 @@ sky:
     secret: ${sky.wechat.secret}
 #    token: ${sky.wechat.token}
 #    aeskey: ${sky.wechat.aeskey}
+  shop:
+    address: 北京市海淀区上地十街10号
+  baidu:
+    ak: ${sky.baidu.ak}
