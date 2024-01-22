@@ -21,7 +21,9 @@ import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
+import com.sky.websocket.WebSocketServer;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.poifs.crypt.dsig.OOXMLURIDereferencer;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,6 +73,8 @@ public class OrderServiceImpl implements OrderService {
     @Value("${sky.baidu.ak}")
     private String ak;
 
+    @Autowired
+    private WebSocketServer webSocketServer;
 
 
     //用户下单
@@ -185,6 +189,16 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         orderMapper.update(orders);
+
+        //通过websocket想客户端浏览器推送消息
+        Map map = new HashMap();
+        map.put("type",1); // 1.来单提醒；2，客户催单
+        map.put("orderId",ordersDB.getId());
+        map.put("content","订单号：" + outTradeNo);
+
+        String json = JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
+
     }
 
     /**
@@ -581,5 +595,25 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderBusinessException("超出配送范围");
         }
     }
+
+
+    @Override
+    public void reminder(Long id) {
+        //根据id查询订单
+        Orders orderDB = orderMapper.getById(id);
+
+        if(orderDB == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+
+        Map map = new HashMap();
+        map.put("type",2); // 1.来单提醒；2，客户催单
+        map.put("orderId",orderDB.getId());
+        map.put("content","订单号：" + orderDB.getNumber());
+
+        String jsonString = JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(jsonString);
+    }
+
 
 }
