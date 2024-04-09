@@ -12,6 +12,7 @@ import com.sky.entity.*;
 import com.sky.exception.AddressBookBusinessException;
 import com.sky.exception.OrderBusinessException;
 import com.sky.exception.ShoppingCartBusinessException;
+import com.sky.http.http;
 import com.sky.mapper.*;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
@@ -32,12 +33,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.awt.image.RescaleOp;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -138,6 +139,12 @@ public class OrderServiceImpl implements OrderService {
 
         return orderSubmitVO;
     }
+
+    public static String generateOrderNumber() {
+        UUID uuid = UUID.randomUUID();
+        String orderNumber = uuid.toString().replace("-", "").substring(0, 20);
+        return orderNumber;
+    }
     /**
      * 订单支付
      *
@@ -153,7 +160,7 @@ public class OrderServiceImpl implements OrderService {
 //        JSONObject jsonObject = weChatPayUtil.pay(
 //                ordersPaymentDTO.getOrderNumber(), //商户订单号
 //                new BigDecimal(0.01), //支付金额，单位 元
-//                "苍穹外卖订单", //商品描述
+//                "外卖订单", //商品描述
 //                user.getOpenid() //微信用户的openid
 //        );
         //假装支付成功
@@ -188,6 +195,29 @@ public class OrderServiceImpl implements OrderService {
                 .checkoutTime(LocalDateTime.now())
                 .build();
 
+        // 在数据库中更新订单信息
+        orderMapper.update(orders);
+        // 根据订单号查询更新完的订单
+        orders = orderMapper.getByNumber(outTradeNo);
+        // 将订单信息发送给区块链节点，并获得区块链最新高度。
+        String responseString = null;
+//        String os = orders.toJsonString();
+        try {
+            responseString = http.postToChain(orders);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        // 从response中提取区块高度信息
+        Long blockHeight = extractLongFromString(responseString);
+        if (blockHeight != null) {
+            System.out.println("提取的区块高度为：" + blockHeight);
+            orders.setBlockHeight(blockHeight);
+            log.info("成功写入高度");
+        } else {
+            System.out.println("未找到区块高度信息");
+        }
+
+        // 在数据库中更新订单信息所处区块链高度信息
         orderMapper.update(orders);
 
         //通过websocket想客户端浏览器推送消息
@@ -199,6 +229,34 @@ public class OrderServiceImpl implements OrderService {
         String json = JSON.toJSONString(map);
         webSocketServer.sendToAllClient(json);
 
+    }
+
+    public static Long extractLongFromString(String input) {
+        // 使用正则表达式匹配数字部分
+        Pattern pattern = Pattern.compile("\\d+");
+        Matcher matcher = pattern.matcher(input);
+
+        // 如果找到匹配的数字，则将其转换为Long类型并返回
+        if (matcher.find()) {
+            String numberStr = matcher.group();
+            try {
+                return Long.parseLong(numberStr);
+            } catch (NumberFormatException e) {
+                System.err.println("无法解析数字：" + numberStr);
+                return null;
+            }
+        } else {
+            return null;
+        }
+    }
+
+    public static boolean isStringConvertibleToLong(String str) {
+        try {
+            Long.parseLong(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /**
